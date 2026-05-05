@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Interactive 3D Globe</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="ui" role="group" aria-label="Globe controls">
+    <div class="row">
+      <label for="lat">Lat:</label>
+      <input id="lat" type="number" step="0.1" value="47.3769" />
+      <label for="lon">Lon:</label>
+      <input id="lon" type="number" step="0.1" value="8.5417" />
+      <button id="apply">Update</button>
+      <input id="search" type="text" placeholder="Ort suchen…" />
+      <button id="searchBtn">🔍</button>
+      <button id="geo" title="Mein Standort">📍</button>
+      <button id="copy" title="Share-Link">🔗</button>
+      <button id="reset" title="Reset">↺</button>
+    </div>
+
+    <div class="row">
+      <label class="ghost"><input id="follow" type="checkbox" checked /> auto-center</label>
+      <label class="ghost"><input id="clickset" type="checkbox" checked /> click → center</label>
+      <label class="ghost"><input id="antipode" type="checkbox" /> antipode</label>
+      <label class="ghost"><input id="rings" type="checkbox" checked /> ringe</label>
+      <button id="spinBtn" class="toggle">↻ spin</button>
+      <button id="distBtn" class="toggle">📏 distanz</button>
+      <div class="sep"></div>
+      <label class="ghost"><input id="dayNight" type="checkbox" /> Tag/Nacht</label>
+      <label class="ghost"><input id="sunMoon" type="checkbox" /> Sonne/Mond</label>
+      <label class="ghost"><input id="issChk" type="checkbox" /> ISS</label>
+      <label class="ghost"><input id="wxChk" type="checkbox" /> Wetter</label>
+    </div>
+
+    <div class="row">
+      <label for="basemap">Karte:</label>
+      <select id="basemap">
+        <option value="dark" selected>Dunkel</option>
+        <option value="blue">Blue Marble</option>
+        <option value="elev">Höhenkarte</option>
+      </select>
+
+      <label for="bordersSel">Grenzen:</label>
+      <select id="bordersSel">
+        <option value="countries" selected>Nur Länder</option>
+        <option value="states">+ Bundesstaaten / Kantone</option>
+        <option value="none">Keine</option>
+      </select>
+
+      <label for="heatSel">Heatmap:</label>
+      <select id="heatSel">
+        <option value="none" selected>Aus</option>
+        <option value="popDensity">Bevölkerungsdichte</option>
+        <option value="gdpNominal">BIP (nominal)</option>
+        <option value="gdpPpp">BIP PPP</option>
+        <option value="gdpPppPerCapita">BIP PPP pro Kopf</option>
+      </select>
+    </div>
+
+    <div class="row timeline">
+      <label for="year">Jahr: <b id="yearLabel">2020</b></label>
+      <input id="year" type="range" min="1990" max="2030" step="10" value="2020" />
+      <span class="legend">
+        <span class="dot" style="background:var(--c-center)"></span>center
+        <span class="dot" style="background:var(--c-anti)"></span>antipode
+        <span class="dot" style="background:var(--c-sun)"></span>☀
+        <span class="dot" style="background:var(--c-moon)"></span>☾
+        <span class="dot" style="background:var(--c-iss)"></span>ISS
+      </span>
+    </div>
+  </div>
+
+  <div id="hint">Ziehen/scrollen zum Erkunden. Klick setzt den Mittelpunkt (wenn aktiviert).</div>
+  <div id="readout" aria-live="polite"></div>
+  <div id="globe"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
