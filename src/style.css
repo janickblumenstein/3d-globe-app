@@ -103,3 +103,23 @@ html, body {
   background-color: #1a1a1a;
   color: #eaeaea;
 }
+
+/* --- UI-Elemente Styling für Dark Mode --- */
+select, input[type="text"], input[type="number"] {
+  background-color: #2a2a2a;
+  color: #eaeaea;
+  border: 1px solid var(--stroke);
+  border-radius: 4px;
+  padding: 4px 6px;
+  outline: none;
+  font-family: inherit;
+}
+
+select:focus, input:focus {
+  border-color: var(--accent);
+}
+
+select option {
+  background-color: #1a1a1a;
+  color: #eaeaea;
+}

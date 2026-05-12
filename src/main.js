@@ -150,30 +150,24 @@ function applyCenter(lat, lon, animate = true) {
 }
 
 // ============================ Polygons + Heatmap ================================
-// ============================ Polygons + Heatmap ================================
 async function refreshPolygons() {
   try {
-    const c = await loadCountries();
-    let feats = c.slice();
-
+    let feats = [];
     const borderMode = ui.getBorders();
     
-    // Kantone/Staaten laden, wenn explizit verlangt ODER wenn wir Regionen gruppieren
+    // PERFORMANCE FIX: Entweder Länder ODER Kantone laden, nicht übereinander!
     if (borderMode === 'states' || borderMode === 'economic' || borderMode === 'language') {
-      const s = await loadStates();
-      feats = feats.concat(s);
-    } else if (borderMode === 'none') {
-      feats = [];
+      feats = await loadStates();
+    } else if (borderMode === 'countries') {
+      const c = await loadCountries();
+      feats = c.slice();
     }
 
-    // Welcher Gruppierungs-Modus ist aktiv?
     let groupingMode = null;
     if (borderMode === 'economic') groupingMode = 'economic';
     if (borderMode === 'language') groupingMode = 'language';
 
-    // Die Magie passiert jetzt hier im DataManager
     await applyHeatToFeatures(feats, ui.getHeat(), ui.getYear(), groupingMode);
-    
     renderer.setPolygons(feats);
     updateReadout();
   } catch (e) {

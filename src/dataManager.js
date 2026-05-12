@@ -1,19 +1,32 @@
-// --- ANFANG DER DATEI ERSETZEN ---
 import { clamp } from './utils/geo.js';
 
 const GEO_URLS = {
   countries: 'https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson',
-  // NEU: 10m Auflösung für maximale Schärfe auf Kantonsebene
+  // NEU: Die 10m-Auflösung enthält nun ALLE Kantone und Bundesstaaten weltweit (Europa, Asien, etc.)
   states: 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson'
 };
 
-const MASTER_DATA_URL = '/data/master_data.json';
-// ... [cache, fetchJson, loadCountries, loadStates, lookupValue bleiben gleich] ...
+// Hier verbinden wir die Keys mit deinen echten JSON-Dateien im public-Ordner
+const DATASET_URLS = {
+  popDensity: '/data/popDensity.json',
+  gdpNominal: '/data/gdp_nominal.json',
+  gdpPpp: '/data/gdp_ppp.json',
+  gdpPppPerCapita: '/data/gdp_ppp_per_capita.json'
+};
+
+export const HEATMAP_CONFIG = {
+  none:            { label: '–',                  unit: '',       vmin: 0,   vmax: 1,      dataset: null, aggregate: 'sum' },
+  popDensity:      { label: 'Bevölkerungsdichte', unit: 'p/km²',  vmin: 1,   vmax: 25000,  dataset: 'popDensity', aggregate: 'average' },
+  gdpNominal:      { label: 'BIP (nominal)',      unit: 'Mrd USD',vmin: 1,   vmax: 30000,  dataset: 'gdpNominal', aggregate: 'sum' },
+  gdpPpp:          { label: 'BIP (PPP)',          unit: 'Mrd USD',vmin: 1,   vmax: 45000,  dataset: 'gdpPpp',     aggregate: 'sum' },
+  gdpPppPerCapita: { label: 'BIP PPP pro Kopf',   unit: 'USD',    vmin: 100, vmax: 150000, dataset: 'gdpPppPerCapita', aggregate: 'average' }
+};
 
 const cache = {
   countries: null,
   states: null,
-  masterData: null
+  regions: null,
+  datasets: {}
 };
 
 async function fetchJson(url) {
@@ -22,7 +35,6 @@ async function fetchJson(url) {
   return r.json();
 }
 
-// --------------------- Country GeoJSON ---------------------------
 export async function loadCountries() {
   if (cache.countries) return cache.countries;
   const g = await fetchJson(GEO_URLS.countries);
@@ -35,11 +47,13 @@ export async function loadCountries() {
   return cache.countries;
 }
 
-// ------------------ States/Provinces GeoJSON ---------------------
 export async function loadStates() {
   if (cache.states) return cache.states;
   try {
-    const g = await fetchJson(GEO_URLS.states);
+    // WICHTIG: Wir laden jetzt deine lokale, optimierte Datei!
+    // Kein ständiger Download mehr und keine 14MB mehr.
+    const g = await fetchJson('/data/states_optimized.geojson'); 
+
     cache.states = (g.features || []).map(f => {
       const p = f.properties || {};
       const isoExplicit = p.iso_3166_2 || p.ISO_3166_2 || '';
@@ -48,13 +62,15 @@ export async function loadStates() {
       const postal = (p.postal || p.POSTAL || p.code || '').toUpperCase();
       const fallback = (parent && postal) ? `${parent}-${postal}` : '';
       const iso = (isoExplicit || hasc || fallback).toUpperCase();
+      const countryIso3 = (p.adm0_a3 || p.ADM0_A3 || '').toUpperCase();
 
       return {
         ...f,
         __kind: 'state',
         __name: p.name || p.NAME || '',
         __admin: p.admin || p.ADMIN || '',
-        __iso31662: iso
+        __iso31662: iso,
+        __countryIso3: countryIso3
       };
     });
   } catch (e) {
@@ -64,90 +80,6 @@ export async function loadStates() {
   return cache.states;
 }
 
-// --------------------- Master-Data & Aggregation ------------------------
-export async function loadMasterData() {
-  if (cache.masterData) return cache.masterData;
-  try {
-    cache.masterData = await fetchJson(MASTER_DATA_URL);
-  } catch (e) {
-    console.error(`[dataManager] Master data load failed`, e);
-    cache.masterData = { metrics: {}, groups: {}, timeSeries: {} };
-  }
-  return cache.masterData;
-}
-
-export function getMetricMeta(key) {
-    return cache.masterData && cache.masterData.metrics ? cache.masterData.metrics[key] : null;
-}
-
-export function lookupValue(datasetId, year, metricKey) {
-    const data = cache.masterData;
-    if (!data) return null;
-
-    if (data.groups && data.groups[datasetId]) {
-        return _aggregateGroupValue(datasetId, year, metricKey);
-    }
-
-    const series = data.timeSeries ? data.timeSeries[datasetId] : null;
-    if (!series) return null;
-
-    const y = Number(year);
-    if (series[y] && series[y][metricKey] != null) return series[y][metricKey];
-
-    const years = Object.keys(series).map(Number).sort((a, b) => a - b);
-    if (years.length === 0) return null;
-    
-    if (y <= years[0]) return series[years[0]][metricKey];
-    if (y >= years[years.length - 1]) return series[years[years.length - 1]][metricKey];
-
-    let lo = years[0], hi = years[years.length - 1];
-    for (let i = 0; i < years.length - 1; i++) {
-        if (years[i] <= y && years[i + 1] >= y) { lo = years[i]; hi = years[i + 1]; break; }
-    }
-    
-    const valLo = series[lo][metricKey];
-    const valHi = series[hi][metricKey];
-    
-    if(valLo == null || valHi == null) return null;
-
-    const t = (y - lo) / (hi - lo);
-    return valLo + (valHi - valLo) * t;
-}
-
-function _aggregateGroupValue(groupId, year, metricKey) {
-    const data = cache.masterData;
-    const group = data.groups[groupId];
-    const metricMeta = data.metrics[metricKey];
-    
-    if (!group || !metricMeta) return null;
-
-    let totalValue = 0;
-    let count = 0;
-
-    group.members.forEach(memberId => {
-        const val = lookupValue(memberId, year, metricKey);
-        if (val !== undefined && val !== null) {
-            totalValue += val;
-            count++;
-        }
-    });
-
-    if (count === 0) return null;
-
-    if (metricMeta.type === 'average') return totalValue / count;
-    return totalValue;
-}
-
-/// ------------------- Heatmap-Konfiguration -----------------------
-export const HEATMAP_CONFIG = {
-  none:            { label: '–',                  unit: '',       vmin: 0,   vmax: 1,      dataset: null, aggregate: 'sum' },
-  // WICHTIG: Dichte ist Durchschnitt (average), BIP ist Summe (sum)
-  popDensity:      { label: 'Bevölkerungsdichte', unit: 'p/km²',  vmin: 1,   vmax: 25000,  dataset: 'popDensity', aggregate: 'average' },
-  gdpNominal:      { label: 'BIP (nominal)',      unit: 'Mrd USD',vmin: 1,   vmax: 30000,  dataset: 'gdpNominal', aggregate: 'sum' },
-  gdpPpp:          { label: 'BIP (PPP)',          unit: 'Mrd USD',vmin: 1,   vmax: 45000,  dataset: 'gdpPpp',     aggregate: 'sum' },
-  gdpPppPerCapita: { label: 'BIP PPP pro Kopf',   unit: 'USD',    vmin: 100, vmax: 150000, dataset: 'gdpPppPerCapita', aggregate: 'average' }
-};
-
 export async function loadRegions() {
   if (cache.regions) return cache.regions;
   try {
@@ -156,6 +88,54 @@ export async function loadRegions() {
     cache.regions = {};
   }
   return cache.regions;
+}
+
+// DIE WICHTIGE FUNKTION, DIE GEFEHLT HAT
+export async function loadDataset(datasetKey) {
+  if (!datasetKey || !DATASET_URLS[datasetKey]) return null;
+  if (cache.datasets[datasetKey]) return cache.datasets[datasetKey];
+  try {
+    const data = await fetchJson(DATASET_URLS[datasetKey]);
+    cache.datasets[datasetKey] = data;
+    return data;
+  } catch (e) {
+    console.error(`[dataManager] Dataset load failed: ${datasetKey}`, e);
+    return null;
+  }
+}
+
+// Helper für die main.js, damit sie den Namen der Metrik findet
+export function getMetricMeta(key) {
+  const cfg = HEATMAP_CONFIG[key];
+  return cfg ? { name: cfg.label, unit: cfg.unit } : null;
+}
+
+export function lookupValue(dataset, datasetId, year) {
+    if (!dataset || !dataset[datasetId]) return null;
+
+    const series = dataset[datasetId];
+    const y = Number(year);
+    if (series[y] != null) return series[y];
+
+    // Ignoriere _meta bei der Jahressuche
+    const years = Object.keys(series).filter(k => k !== '_meta').map(Number).sort((a, b) => a - b);
+    if (years.length === 0) return null;
+    
+    if (y <= years[0]) return series[years[0]];
+    if (y >= years[years.length - 1]) return series[years[years.length - 1]];
+
+    let lo = years[0], hi = years[years.length - 1];
+    for (let i = 0; i < years.length - 1; i++) {
+        if (years[i] <= y && years[i + 1] >= y) { lo = years[i]; hi = years[i + 1]; break; }
+    }
+    
+    const valLo = series[lo];
+    const valHi = series[hi];
+    
+    if(valLo == null || valHi == null) return null;
+
+    const t = (y - lo) / (hi - lo);
+    return valLo + (valHi - valLo) * t;
 }
 
 export function colorScale(v, vmin, vmax) {
@@ -175,19 +155,23 @@ export function colorScale(v, vmin, vmax) {
 
 export async function applyHeatToFeatures(features, heatKey, year, groupingMode = null) {
   const cfg = HEATMAP_CONFIG[heatKey];
+  
+  // FALL 1: Heatmap ist "Aus" -> Zeige nur das leuchtende Netz der Grenzen!
   if (!cfg || heatKey === 'none' || !cfg.dataset) {
     features.forEach(f => {
-      f.__fillColor = null;
+      // NEU: Ein feines, transparentes Weiss, damit die Grenzen auf der dunklen Erde aufblitzen
+      f.__fillColor = f.__kind === 'state' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.03)';
       f.__label = `<b>${f.__name}</b>${f.__admin ? `<br><small>${f.__admin}</small>` : ''}`;
     });
     return;
   }
   
   const dataset = await loadDataset(cfg.dataset);
+  if (!dataset) return; 
+  
   let codeToGroup = {};
   let groupValueCache = {};
   
-  // High-Performance Aggregation (Einmal berechnen, nicht pro Kachel)
   if (groupingMode) {
      const regions = await loadRegions();
      const groups = regions[groupingMode];
@@ -208,7 +192,6 @@ export async function applyHeatToFeatures(features, heatKey, year, groupingMode 
      }
   }
 
-  // Zeichen-Schleife
   features.forEach(f => {
     const code = f.__kind === 'country' ? f.__iso3 : f.__iso31662;
     let v = null;
@@ -222,21 +205,36 @@ export async function applyHeatToFeatures(features, heatKey, year, groupingMode 
                 v = groupValueCache[groupId].value;
                 title = `${groupValueCache[groupId].name} (${f.__name})`;
                 showAdmin = false;
+                
+                // NEU: Milichiges Weiss, falls die Region im JSON existiert, aber (noch) leer ist
+                f.__fillColor = v != null ? colorScale(v, cfg.vmin, cfg.vmax) : 'rgba(255, 255, 255, 0.25)';
             } else {
-                f.__fillColor = 'rgba(30,30,30,0.15)'; // Ausgrauen
+                // NEU: Alle nicht-ausgewählten Kantone extrem dezent im Hintergrund halten
+                f.__fillColor = 'rgba(255, 255, 255, 0.02)'; 
                 f.__label = `<b>${f.__name}</b><br><small>Keine Zuordnung</small>`;
                 return;
             }
         } else {
-            f.__fillColor = 'rgba(10,10,10,0.2)'; // Länder im HG abdunkeln
+            f.__fillColor = 'rgba(255, 255, 255, 0.02)'; 
             f.__label = `<b>${f.__name}</b>`;
             return;
         }
     } else {
         v = lookupValue(dataset, code, year);
+        
+        // Vererbung vom Land
+        if (v == null && f.__kind === 'state' && f.__countryIso3) {
+            v = lookupValue(dataset, f.__countryIso3, year);
+        }
+
+        f.__fillColor = colorScale(v, cfg.vmin, cfg.vmax);
+        
+        // NEU: Leuchtend weisses Gitternetz für Staaten, die absolut keine Daten haben
+        if (v == null) {
+            f.__fillColor = 'rgba(255, 255, 255, 0.08)';
+        }
     }
 
-    f.__fillColor = colorScale(v, cfg.vmin, cfg.vmax);
     const valTxt = v != null ? Math.round(v).toLocaleString('de-CH') + ' ' + cfg.unit : 'k. A.';
     f.__label = `<b>${title}</b>` + (showAdmin ? ` <small>(${f.__admin})</small>` : '') + `<br>${cfg.label} ${year}: ${valTxt}`;
   });

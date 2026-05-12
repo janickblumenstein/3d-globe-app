@@ -66,6 +66,15 @@ export class GlobeRenderer {
         obj.clear();
         this._addGuidesToGroup(obj, d.lat, d.lon);
       });
+    // --- ZOOM-LIMIT AUFHEBEN ---
+    setTimeout(() => {
+      const controls = this.globe.controls();
+      if (controls) {
+        // Erlaubt das Zoomen bis fast auf die Erdoberfläche (Globe Radius ist 100)
+        controls.minDistance = 101; 
+        controls.zoomSpeed = 0.6; // Etwas feinerer Zoom, wenn man so nah ist
+      }
+    }, 1000);
 
     this.globe.width(window.innerWidth);
     this.globe.height(window.innerHeight);
@@ -216,27 +225,33 @@ export class GlobeRenderer {
 
   // ============================ Day/Night ======================================
 
-  _ensureTerminator() {
+_ensureTerminator() {
     if (this.terminatorMesh) return this.terminatorMesh;
-    const R = (this.globe.getGlobeRadius?.() || 100) * 10;
-    const geom = new THREE.SphereGeometry(R, 96, 64);
+    const R = (this.globe.getGlobeRadius?.() || 100) * 1.005; // Minimal grösser als die Erde
+    const geom = new THREE.SphereGeometry(R, 64, 64);
     const mat = new THREE.ShaderMaterial({
       uniforms: { sunDir: { value: new THREE.Vector3(1, 0, 0) } },
       vertexShader: `
-        varying vec3 vNormal;
+        varying vec3 vWorldNormal;
         void main() {
-          vNormal = normalize(normalMatrix * normal);
+          // WICHTIG: Normale im World Space berechnen, nicht Camera Space!
+          vWorldNormal = normalize(mat3(modelMatrix) * normal);
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }`,
       fragmentShader: `
         uniform vec3 sunDir;
-        varying vec3 vNormal;
+        varying vec3 vWorldNormal;
         void main() {
-          float c = dot(normalize(vNormal), normalize(sunDir));
-          float night = smoothstep(0.1, -0.2, c);
-          gl_FragColor = vec4(0.0, 0.0, 0.0, night * 0.85);
+          // Winkel zwischen Sonne und Oberfläche
+          float c = dot(normalize(vWorldNormal), normalize(sunDir));
+          // Weicher Übergang zwischen Tag und Nacht
+          float night = smoothstep(0.05, -0.2, c);
+          gl_FragColor = vec4(0.0, 0.0, 0.0, night * 0.7); // 0.7 = Stärke der Dunkelheit
         }`,
-      transparent: true, depthWrite: false, depthTest: false,side: THREE.FrontSide
+      transparent: true, 
+      depthWrite: false, 
+      depthTest: false,
+      side: THREE.FrontSide
     });
     this.terminatorMesh = new THREE.Mesh(geom, mat);
     this.terminatorMesh.renderOrder = 5000;
