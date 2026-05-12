@@ -98,3 +98,8 @@ html, body {
 #readout b { color: #fff; }
 
 .wxgrid { display: grid; grid-template-columns: auto auto; gap: 2px 10px; margin-top: 4px; }
+
+#ui select option {
+  background-color: #1a1a1a;
+  color: #eaeaea;
+}

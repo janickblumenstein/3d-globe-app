@@ -1,0 +1,8 @@
+{
+  "economic": {
+    "CHE-NW": { "name": "Nordwestschweiz", "members": ["CH-AG", "CH-BL", "CH-BS"] }
+  },
+  "language": {
+    "CHE-DE": { "name": "Deutschschweiz", "members": ["CH-ZH", "CH-BE", "CH-AG", "CH-SG"] }
+  }
+}

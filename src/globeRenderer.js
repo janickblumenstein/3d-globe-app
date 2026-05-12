@@ -218,7 +218,7 @@ export class GlobeRenderer {
 
   _ensureTerminator() {
     if (this.terminatorMesh) return this.terminatorMesh;
-    const R = (this.globe.getGlobeRadius?.() || 100) * 1.001;
+    const R = (this.globe.getGlobeRadius?.() || 100) * 10;
     const geom = new THREE.SphereGeometry(R, 96, 64);
     const mat = new THREE.ShaderMaterial({
       uniforms: { sunDir: { value: new THREE.Vector3(1, 0, 0) } },
@@ -236,7 +236,7 @@ export class GlobeRenderer {
           float night = smoothstep(0.1, -0.2, c);
           gl_FragColor = vec4(0.0, 0.0, 0.0, night * 0.85);
         }`,
-      transparent: true, depthWrite: false, side: THREE.FrontSide
+      transparent: true, depthWrite: false, depthTest: false,side: THREE.FrontSide
     });
     this.terminatorMesh = new THREE.Mesh(geom, mat);
     this.terminatorMesh.renderOrder = 5000;
