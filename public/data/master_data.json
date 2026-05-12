@@ -1,0 +1,28 @@
+{
+  "metrics": {
+    "popDensity": { "name": "Bevölkerungsdichte", "unit": "p/km²", "type": "average", "vmin": 1, "vmax": 25000 },
+    "gdpNominal": { "name": "BIP (nominal)", "unit": "Mrd USD", "type": "sum", "vmin": 1, "vmax": 30000 }
+  },
+  "groups": {
+    "CHE-NW": { "name": "Nordwestschweiz", "type": "economic", "members": ["CH-AG", "CH-BL", "CH-BS"] },
+    "CHE-DE": { "name": "Deutschschweiz", "type": "language", "members": ["CH-ZH", "CH-BE", "CH-AG", "CH-SG"] }
+  },
+  "timeSeries": {
+    "CHE": {
+      "1990": { "popDensity": 167, "gdpNominal": 245 },
+      "2000": { "popDensity": 175, "gdpNominal": 260 }
+    },
+    "CH-AG": {
+      "1990": { "popDensity": 480, "gdpNominal": 40 },
+      "2000": { "popDensity": 520, "gdpNominal": 55 }
+    },
+    "CH-BS": {
+      "1990": { "popDensity": 5200, "gdpNominal": 30 },
+      "2000": { "popDensity": 5300, "gdpNominal": 35 }
+    },
+    "CH-BL": {
+      "1990": { "popDensity": 600, "gdpNominal": 25 },
+      "2000": { "popDensity": 620, "gdpNominal": 30 }
+    }
+  }
+}
